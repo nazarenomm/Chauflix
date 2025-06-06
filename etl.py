@@ -94,4 +94,22 @@ def cargar_tabla_datawarehouse(df: pd.DataFrame, nombre_tabla: str) -> None:
     Carga el DataFrame transformado en la tabla del datawarehouse.
     """
     supabase_dw.schema("public").table(nombre_tabla).insert(df.to_dict(orient='records')).execute()
-    
+
+movies = transformar_peliculas(movies)
+cargar_tabla_datawarehouse(movies, 'dim_movie')
+
+#%% dim_user
+
+users_df = extraer_tabla_supabase('users')
+
+def transformar_usuarios(users_df: pd.DataFrame) -> pd.DataFrame:
+    users_df = users_df[['id', 'birth_date', 'country_id', 'gender']]
+    countries_df = extraer_tabla_supabase('country')
+    countries_df = countries_df[['id', 'name']]
+    merged_df = pd.merge(users_df, countries_df, left_on='country_id', right_on='id', how='left')
+    merged_df.drop(columns=['country_id', 'id_y'], inplace=True)
+    merged_df.rename(columns={'id_x': 'id', 'name': 'country'}, inplace=True)
+    return merged_df
+
+users_df = transformar_usuarios(users_df)
+cargar_tabla_datawarehouse(users_df, 'dim_user')
