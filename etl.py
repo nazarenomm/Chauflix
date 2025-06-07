@@ -17,7 +17,7 @@ url_dw = 'https://hcwyzlprqjlwqwdrfrco.supabase.co'
 key_dw = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhjd3l6bHBycWpsd3F3ZHJmcmNvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTA3NjkzOSwiZXhwIjoyMDY0NjUyOTM5fQ.kslrFLfk4e6HRIPs60qjwna4XWiXIPiJSv7988QjLIo'
 supabase_dw = create_client(url_dw, key_dw)
 
-def extraer_tabla_mongo(nombre_tabla: str) -> pd.DataFrame:
+def extraer_tabla_mongo(mongo, nombre_tabla: str) -> pd.DataFrame:
     """
     Extrae una tabla de la base de datos MongoDB y la guarda en un DataFrame.
     """
@@ -26,11 +26,19 @@ def extraer_tabla_mongo(nombre_tabla: str) -> pd.DataFrame:
     df = df.drop(columns=['_id'])  # Eliminar la columna _id
     return df
 
-def extraer_tabla_supabase(nombre_tabla: str, cols:str='*') -> pd.DataFrame:
+def extraer_tabla_supabase(supabase_op, nombre_tabla: str, cols:str='*') -> pd.DataFrame:
     """
     Extrae una tabla de la base de datos operacional y la guarda en un DataFrame.
     """
     response = supabase_op.table(nombre_tabla).select(cols).execute()
+    df = pd.DataFrame(response.data)
+    return df
+
+def extraer_tabla_datawarehouse(supabase_dw, nombre_tabla: str, cols:str='*') -> pd.DataFrame:
+    """
+    Extrae una tabla del Datawarehouse y la guarda en un DataFrame.
+    """
+    response = supabase_dw.table(nombre_tabla).select(cols).execute()
     df = pd.DataFrame(response.data)
     return df
 
@@ -40,7 +48,16 @@ def cargar_tabla_datawarehouse(df: pd.DataFrame, nombre_tabla: str) -> None:
     """
     supabase_dw.schema("public").table(nombre_tabla).insert(df.to_dict(orient='records')).execute()
 
-#%% ----------dim_movie
+#%% ----------dim_movieS
+
+def validar_si_esta_en_datawarehouse(movies_mongo: pd.DataFrame, movies_dw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Valida si las películas de MongoDB ya están en el datawarehouse.
+    Retorna un DataFrame con las películas que no están en el datawarehouse.
+    """
+    df = movies_mongo[~movies_mongo['id'].isin(movies_dw['id'])]
+    
+    return df
 
 def agregar_expiration_date(movies_df: pd.DataFrame, licenses_df: pd.DataFrame, licenses_payment_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -105,7 +122,6 @@ def transformar_peliculas(movies_df: pd.DataFrame, ratings_df: pd.DataFrame, lic
     movies_df = extraer_genero_principal(movies_df) # extraer género principal y reemplazar la lista
     
     movies_df.rename(columns={'genres': 'genre', 'rating': 'mean_rating'}, inplace=True)
-    movies_df.dropna(inplace=True)
 
     return movies_df
 
